@@ -23,9 +23,10 @@ jobs:
           pip install -r requirements.txt
 
 
-      - name: 🔐 Create Google credentials file
+      - name: 🔐 Set Google credentials env
         run: |
-          echo '${{ secrets.NEW }}' > pags-429207-b6b0c60cd0ce.json
+          echo "NEW=${{ secrets.NEW }}" >> $GITHUB_ENV
+
 
       - name: 🚀 Run NSE script
         run: |
