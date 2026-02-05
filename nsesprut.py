@@ -45,16 +45,16 @@ update_google_sheet_by_name(
 )
 
 # ================= FOOTER =================
-
 ist = pytz.timezone("Asia/Kolkata")
-timestamp = datetime.now(ist).strftime("Updated on %d-%m-%Y %H:%M:%S IST")
-footer = [""] * (len(headers) - 1) + [timestamp]
+timestamp = datetime.now(ist).strftime("%d-%m-%Y %H:%M:%S IST")
+
+# Timestamp in FIRST column
+footer = [timestamp] + [""] * (len(headers) - 1)
 
 append_footer(
     sheet_id=SHEET_ID,
     worksheet_name=WORKSHEET_NAME,
     footer_row=footer
 )
-
 
 
