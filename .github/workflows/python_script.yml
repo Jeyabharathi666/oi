@@ -29,4 +29,4 @@ jobs:
 
       - name: 🚀 Run NSE script
         run: |
-          python nse.py
+          python nsesprut.py
