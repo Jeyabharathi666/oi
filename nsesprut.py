@@ -52,3 +52,4 @@ append_footer(
     worksheet_name=WORKSHEET_NAME,
     footer_row=footer
 )
+
