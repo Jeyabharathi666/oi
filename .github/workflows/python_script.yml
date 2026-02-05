@@ -2,7 +2,7 @@ name: NSE OI Sprut to Google Sheet
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # 🔁 every 5 minutes
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -22,11 +22,11 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-
       - name: 🔐 Set Google credentials env
         run: |
-          echo "NEW=${{ secrets.NEW }}" >> $GITHUB_ENV
-
+          echo "NEW<<EOF" >> $GITHUB_ENV
+          echo '${{ secrets.NEW }}' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: 🚀 Run NSE script
         run: |
