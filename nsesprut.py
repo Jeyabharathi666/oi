@@ -148,7 +148,7 @@ def main():
 
     # ---- Timestamp ONLY in Column A, last row ----
     ist = pytz.timezone("Asia/Kolkata")
-    timestamp = datetime.now(ist).strftime("Updated %d-%m-%Y %H:%M:%S IST")
+    timestamp = datetime.now(ist).strftime("%d-%m-%Y %H:%M:%S IST")
 
     last_row = len(df) + 2
     ws.update_cell(last_row, 1, timestamp)
@@ -158,3 +158,4 @@ def main():
 # ==========================
 if __name__ == "__main__":
     main()
+
