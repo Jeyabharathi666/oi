@@ -1,35 +1,32 @@
-name: Run Scrapers Every Hour
+name: NSE OI Sprut to Google Sheet
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # ⏰ every five hour at minute 0
+    - cron: "*/5 * * * *"   # 🔁 every 5 minutes
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  run-scrapers:
+  run-script:
     runs-on: ubuntu-latest
 
-    env:
-      NEW: ${{ secrets.NEW }}
-
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v3
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
 
-      - name: 🧪 List files (debug)
-        run: ls -R
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install tf-playwright-stealth
-          python -m playwright install --with-deps
-      - name: 🚀 Run news scripts
+          pip install requests pandas gspread oauth2client
+
+      - name: 🔐 Create Google credentials file
         run: |
-          python nsesprut.py
-      
-          
+          echo '${{ secrets.NEW }}' > pags-429207-b6b0c60cd0ce.json
+
+      - name: 🚀 Run NSE script
+        run: |
+          python nse.py
