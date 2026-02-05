@@ -60,12 +60,13 @@ append_footer(
 
 
 '''
-
 import requests
 import pandas as pd
 import time
 from datetime import datetime
 import pytz
+import os
+import json
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -75,8 +76,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 # ==========================
 SHEET_ID = "1qrpBjK-qBRA85y_kNiRUGQ50U1AmTEX5cPooCPvZ4gw"
 WORKSHEET_NAME = "NSPRUT"
-
-SERVICE_ACCOUNT_JSON = "pags-429207-b11860985f46.json"
 
 BASE_URL = "https://www.nseindia.com"
 API_URL = "https://www.nseindia.com/api/live-analysis-oi-spurts-underlyings"
@@ -92,16 +91,21 @@ HEADERS = {
 }
 
 # ==========================
-# GOOGLE SHEETS CONNECT
+# GOOGLE SHEETS CONNECT (ENV SAFE)
 # ==========================
 def get_worksheet():
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        SERVICE_ACCOUNT_JSON, scope
-    )
+
+    raw_json = os.environ.get("NEW")
+    if not raw_json:
+        raise Exception("Environment variable NEW is not set")
+
+    creds_dict = json.loads(raw_json)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(SHEET_ID)
     return sh.worksheet(WORKSHEET_NAME)
@@ -119,13 +123,8 @@ def fetch_oi_spurts():
     r = session.get(API_URL)
     r.raise_for_status()
 
-    data = r.json().get("data", [])
-    df = pd.DataFrame(data)
-
-    # Optional: limit rows
-    df = df.head(35)
-
-    return df
+    df = pd.DataFrame(r.json().get("data", []))
+    return df.head(35)
 
 # ==========================
 # MAIN
@@ -141,21 +140,20 @@ def main():
 
     ws = get_worksheet()
 
-    # ---- WRITE HEADERS (A1:K1 only once or overwrite safely) ----
-    headers = df.columns.tolist()
-    ws.update("A1", [headers])
+    # ---- Write headers (A1 onward, safe) ----
+    ws.update("A1", [df.columns.tolist()])
 
-    # ---- WRITE DATA (A2 onward, numbers stay numbers) ----
+    # ---- Write data (A2 onward, NUMBERS stay numbers) ----
     ws.update("A2", df.values.tolist())
 
-    # ---- UPDATE TIMESTAMP (Column A, last data row only) ----
+    # ---- Timestamp ONLY in Column A, last row ----
     ist = pytz.timezone("Asia/Kolkata")
     timestamp = datetime.now(ist).strftime("Updated %d-%m-%Y %H:%M:%S IST")
 
-    last_row = len(df) + 2  # header + data
+    last_row = len(df) + 2
     ws.update_cell(last_row, 1, timestamp)
 
-    print("🎉 SUCCESS: Data updated without touching formulas")
+    print("🎉 SUCCESS: Sheet updated safely")
 
 # ==========================
 if __name__ == "__main__":
