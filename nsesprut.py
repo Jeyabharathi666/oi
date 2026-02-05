@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 from datetime import datetime
+import pytz
 
 # 👇 import your existing helper (NO CHANGES to that file)
 from google_sheets import update_google_sheet_by_name, append_footer
@@ -44,7 +45,9 @@ update_google_sheet_by_name(
 )
 
 # ================= FOOTER =================
-timestamp = datetime.now().strftime("Updated on %d-%m-%Y %H:%M:%S")
+
+ist = pytz.timezone("Asia/Kolkata")
+timestamp = datetime.now(ist).strftime("Updated on %d-%m-%Y %H:%M:%S IST")
 footer = [""] * (len(headers) - 1) + [timestamp]
 
 append_footer(
@@ -52,5 +55,6 @@ append_footer(
     worksheet_name=WORKSHEET_NAME,
     footer_row=footer
 )
+
 
 
