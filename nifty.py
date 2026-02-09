@@ -3,10 +3,12 @@ import json
 import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
+from zoneinfo import ZoneInfo   # Python 3.9+
 
 
 # -------------------------------------------------
-# NSE SESSION (MANDATORY)
+# NSE SESSION
 # -------------------------------------------------
 def get_nse_session():
     session = requests.Session()
@@ -51,7 +53,7 @@ def fetch_totals(session, symbol, expiry):
 
 
 # -------------------------------------------------
-# GOOGLE SHEETS CONNECTION
+# GOOGLE SHEETS
 # -------------------------------------------------
 def get_worksheet():
     scope = [
@@ -75,18 +77,24 @@ def main():
     session = get_nse_session()
     ws = get_worksheet()
 
+    # IST time
+    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    date_ist = now_ist.strftime("%Y-%m-%d")
+    time_ist = now_ist.strftime("%H:%M:%S")
+
     rows = [
-        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
-        ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026")],
-        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026")]
+        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026"), date_ist, time_ist],
+        ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026"), date_ist, time_ist],
+        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026"), date_ist, time_ist],
     ]
 
-    ws.update(
-        "A1",
-        [["Symbol", "CE_OI", "CE_VOL", "PE_OI", "PE_VOL"]] + rows
+    # Append rows (history safe)
+    ws.append_rows(
+        rows,
+        value_input_option="USER_ENTERED"
     )
 
-    print("✅ Google Sheet updated successfully")
+    print("✅ Data appended with IST date & time")
 
 
 if __name__ == "__main__":
