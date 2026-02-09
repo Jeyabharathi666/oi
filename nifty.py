@@ -82,10 +82,14 @@ def main():
     session = get_nse_session()
     ws = get_worksheet()
 
-    # 🔥 STEP 1: CLEAR OLD DATA (A:E)
+    # 🔥 STEP 1: CLEAR OLD DATA (A:E only)
     ws.batch_clear(["A:E"])
 
-    # 🔥 STEP 2: INSERT FRESH MARKET DATA
+    # 🔥 STEP 2: WRITE HEADERS
+    headers = [["SYMBOL", "CE_OI", "CE_VOL", "PE_OI", "PE_VOL"]]
+    ws.update("A1", headers, value_input_option="USER_ENTERED")
+
+    # 🔥 STEP 3: WRITE FRESH DATA
     data_rows = [
         ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
         ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026")],
@@ -93,22 +97,22 @@ def main():
     ]
 
     ws.update(
-        "A1",
+        "A2",
         data_rows,
         value_input_option="USER_ENTERED"
     )
 
-    # 🔥 STEP 3: ADD IST TIMESTAMP FOOTER
+    # 🔥 STEP 4: ADD IST TIMESTAMP FOOTER
     now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
     timestamp = now_ist.strftime("%d-%m-%Y %H:%M:%S IST")
 
     ws.update(
-        f"A{len(data_rows) + 1}",
+        f"A{len(data_rows) + 2}",
         [[timestamp]],
         value_input_option="USER_ENTERED"
     )
 
-    print("✅ Sheet refreshed with latest NSE data + IST timestamp")
+    print("✅ Sheet refreshed with headers + NSE data + IST timestamp")
 
 
 # -------------------------------------------------
