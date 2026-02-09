@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 
 # -------------------------------------------------
-# NSE SESSION (MANDATORY FOR NSE APIs)
+# NSE SESSION
 # -------------------------------------------------
 def get_nse_session():
     session = requests.Session()
@@ -25,7 +25,7 @@ def get_nse_session():
 
 
 # -------------------------------------------------
-# FETCH TOTAL CE/PE OI & VOLUME (SUM OF ALL STRIKES)
+# FETCH TOTAL CE/PE OI & VOLUME
 # -------------------------------------------------
 def fetch_totals(session, symbol, expiry):
     url = (
@@ -36,7 +36,7 @@ def fetch_totals(session, symbol, expiry):
     data = session.get(url, timeout=10).json()
 
     if "records" not in data:
-        raise Exception("Invalid NSE response (blocked or expired)")
+        raise Exception("Invalid NSE response")
 
     ce_oi = ce_vol = pe_oi = pe_vol = 0
 
@@ -56,7 +56,7 @@ def fetch_totals(session, symbol, expiry):
 
 
 # -------------------------------------------------
-# GOOGLE SHEETS CONNECTION
+# GOOGLE SHEETS
 # -------------------------------------------------
 def get_worksheet():
     scope = [
@@ -76,47 +76,39 @@ def get_worksheet():
 
 
 # -------------------------------------------------
-# FIND NEXT SAFE ROW (CRITICAL FIX)
-# -------------------------------------------------
-def get_next_row(ws):
-    col_a = ws.col_values(1)   # Column A is the anchor
-    return len(col_a) + 1
-
-
-# -------------------------------------------------
 # MAIN
 # -------------------------------------------------
 def main():
     session = get_nse_session()
     ws = get_worksheet()
 
-    start_row = get_next_row(ws)
+    # 🔥 STEP 1: CLEAR OLD DATA (A:E)
+    ws.batch_clear(["A:E"])
 
-    # -------- MARKET DATA ROWS --------
+    # 🔥 STEP 2: INSERT FRESH MARKET DATA
     data_rows = [
         ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
         ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026")],
         ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026")]
     ]
 
-    # Write market rows explicitly (NO OVERWRITE)
     ws.update(
-        f"A{start_row}",
+        "A1",
         data_rows,
         value_input_option="USER_ENTERED"
     )
 
-    # -------- SINGLE IST TIMESTAMP FOOTER --------
+    # 🔥 STEP 3: ADD IST TIMESTAMP FOOTER
     now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
     timestamp = now_ist.strftime("%d-%m-%Y %H:%M:%S IST")
 
     ws.update(
-        f"A{start_row + len(data_rows)}",
+        f"A{len(data_rows) + 1}",
         [[timestamp]],
         value_input_option="USER_ENTERED"
     )
 
-    print("✅ NSE data appended safely with IST timestamp")
+    print("✅ Sheet refreshed with latest NSE data + IST timestamp")
 
 
 # -------------------------------------------------
