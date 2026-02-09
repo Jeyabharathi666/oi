@@ -4,11 +4,11 @@ import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from zoneinfo import ZoneInfo   # Python 3.9+
+from zoneinfo import ZoneInfo
 
 
 # -------------------------------------------------
-# NSE SESSION
+# NSE SESSION (MANDATORY FOR NSE APIs)
 # -------------------------------------------------
 def get_nse_session():
     session = requests.Session()
@@ -25,7 +25,7 @@ def get_nse_session():
 
 
 # -------------------------------------------------
-# FETCH TOTAL OI / VOLUME (SUM OF ALL STRIKES)
+# FETCH TOTAL CE/PE OI & VOLUME (SUM OF ALL STRIKES)
 # -------------------------------------------------
 def fetch_totals(session, symbol, expiry):
     url = (
@@ -53,7 +53,7 @@ def fetch_totals(session, symbol, expiry):
 
 
 # -------------------------------------------------
-# GOOGLE SHEETS
+# GOOGLE SHEETS CONNECTION
 # -------------------------------------------------
 def get_worksheet():
     scope = [
@@ -77,25 +77,34 @@ def main():
     session = get_nse_session()
     ws = get_worksheet()
 
-    # IST time
-    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
-    date_ist = now_ist.strftime("%Y-%m-%d")
-    time_ist = now_ist.strftime("%H:%M:%S")
-
-    rows = [
-        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026"), date_ist, time_ist],
-        ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026"), date_ist, time_ist],
-        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026"), date_ist, time_ist],
+    # -------- MARKET DATA ROWS --------
+    data_rows = [
+        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
+        ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026")],
+        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026")]
     ]
 
-    # Append rows (history safe)
+    # Append market rows
     ws.append_rows(
-        rows,
+        data_rows,
         value_input_option="USER_ENTERED"
     )
 
-    print("✅ Data appended with IST date & time")
+    # -------- SINGLE IST TIMESTAMP FOOTER --------
+    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    timestamp = now_ist.strftime("%d-%m-%Y %H:%M:%S IST")
+
+    # Append timestamp in column A only
+    ws.append_row(
+        [timestamp],
+        value_input_option="USER_ENTERED"
+    )
+
+    print("✅ NSE data appended with IST timestamp footer")
 
 
+# -------------------------------------------------
+# ENTRY POINT
+# -------------------------------------------------
 if __name__ == "__main__":
     main()
