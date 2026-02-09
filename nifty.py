@@ -65,7 +65,7 @@ def get_worksheet():
     )
 
     gc = gspread.authorize(creds)
-    return gc.open_by_key("YOUR_SHEET_ID").worksheet("Sheet1")
+    return gc.open_by_key("1qrpBjK-qBRA85y_kNiRUGQ50U1AmTEX5cPooCPvZ4gw").worksheet("NIFTY")
 
 
 # -------------------------------------------------
