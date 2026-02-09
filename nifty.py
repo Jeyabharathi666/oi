@@ -35,6 +35,9 @@ def fetch_totals(session, symbol, expiry):
 
     data = session.get(url, timeout=10).json()
 
+    if "records" not in data:
+        raise Exception("Invalid NSE response (blocked or expired)")
+
     ce_oi = ce_vol = pe_oi = pe_vol = 0
 
     for row in data["records"]["data"]:
@@ -67,7 +70,17 @@ def get_worksheet():
     )
 
     gc = gspread.authorize(creds)
-    return gc.open_by_key("1qrpBjK-qBRA85y_kNiRUGQ50U1AmTEX5cPooCPvZ4gw").worksheet("NIFTY")
+    return gc.open_by_key(
+        "1qrpBjK-qBRA85y_kNiRUGQ50U1AmTEX5cPooCPvZ4gw"
+    ).worksheet("NIFTY")
+
+
+# -------------------------------------------------
+# FIND NEXT SAFE ROW (CRITICAL FIX)
+# -------------------------------------------------
+def get_next_row(ws):
+    col_a = ws.col_values(1)   # Column A is the anchor
+    return len(col_a) + 1
 
 
 # -------------------------------------------------
@@ -77,6 +90,8 @@ def main():
     session = get_nse_session()
     ws = get_worksheet()
 
+    start_row = get_next_row(ws)
+
     # -------- MARKET DATA ROWS --------
     data_rows = [
         ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
@@ -84,8 +99,9 @@ def main():
         ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026")]
     ]
 
-    # Append market rows
-    ws.append_rows(
+    # Write market rows explicitly (NO OVERWRITE)
+    ws.update(
+        f"A{start_row}",
         data_rows,
         value_input_option="USER_ENTERED"
     )
@@ -94,13 +110,13 @@ def main():
     now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
     timestamp = now_ist.strftime("%d-%m-%Y %H:%M:%S IST")
 
-    # Append timestamp in column A only
-    ws.append_row(
-        [timestamp],
+    ws.update(
+        f"A{start_row + len(data_rows)}",
+        [[timestamp]],
         value_input_option="USER_ENTERED"
     )
 
-    print("✅ NSE data appended with IST timestamp footer")
+    print("✅ NSE data appended safely with IST timestamp")
 
 
 # -------------------------------------------------
