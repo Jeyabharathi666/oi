@@ -5,7 +5,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ---------------------------
-# NSE SESSION SETUP
+# NSE SESSION
 # ---------------------------
 def get_nse_session():
     session = requests.Session()
@@ -21,9 +21,9 @@ def get_nse_session():
 
 
 # ---------------------------
-# FETCH OPTION CHAIN TOTALS
+# FETCH TOTAL OI / VOLUME
 # ---------------------------
-def fetch_option_totals(session, symbol, expiry):
+def fetch_totals(session, symbol, expiry):
     url = (
         "https://www.nseindia.com/api/option-chain-v3"
         f"?type=Indices&symbol={symbol}&expiry={expiry}"
@@ -34,18 +34,16 @@ def fetch_option_totals(session, symbol, expiry):
     ce = data.get("CE", {})
     pe = data.get("PE", {})
 
-    return {
-        "symbol": symbol,
-        "expiry": expiry,
-        "CE_OI": ce.get("totOI", 0),
-        "CE_VOL": ce.get("totVol", 0),
-        "PE_OI": pe.get("totOI", 0),
-        "PE_VOL": pe.get("totVol", 0),
-    }
+    return (
+        ce.get("totOI", 0),
+        ce.get("totVol", 0),
+        pe.get("totOI", 0),
+        pe.get("totVol", 0),
+    )
 
 
 # ---------------------------
-# GOOGLE SHEETS SETUP
+# GOOGLE SHEETS
 # ---------------------------
 def get_sheet():
     scope = [
@@ -69,31 +67,15 @@ def main():
     session = get_nse_session()
     ws = get_sheet()
 
-    rows = []
-
-    rows.append([
-        "BANKNIFTY", "24-Feb-2026",
-        *fetch_option_totals(session, "BANKNIFTY", "24-Feb-2026").values()
-    ])
-
-    rows.append([
-        "NIFTY", "10-Feb-2026",
-        *fetch_option_totals(session, "NIFTY", "10-Feb-2026").values()
-    ])
-
-    rows.append([
-        "FINNIFTY", "24-Feb-2026",
-        *fetch_option_totals(session, "FINNIFTY", "24-Feb-2026").values()
-    ])
-
-    # Clean rows (remove duplicate symbol/expiry)
-    clean_rows = []
-    for r in rows:
-        clean_rows.append([r[0], r[1], r[3], r[4], r[5], r[6]])
+    rows = [
+        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", "24-Feb-2026")],
+        ["NIFTY", *fetch_totals(session, "NIFTY", "10-Feb-2026")],
+        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", "24-Feb-2026")]
+    ]
 
     ws.update(
-        "A2",
-        [["Symbol", "Expiry", "CE_OI", "CE_VOL", "PE_OI", "PE_VOL"]] + clean_rows
+        "A1",
+        [["Symbol", "CE_OI", "CE_VOL", "PE_OI", "PE_VOL"]] + rows
     )
 
     print("✅ NSE Option Chain totals updated successfully")
