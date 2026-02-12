@@ -120,103 +120,83 @@ def main():
 # -------------------------------------------------
 if __name__ == "__main__":
     main()'''
+
+
 import requests
 import json
 import os
 import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
 
 
 # -------------------------------------------------
-# 1️⃣ NSE SESSION (GITHUB ACTIONS SAFE)
+# 1️⃣ NSE SESSION (ONLY FOR DATA)
 # -------------------------------------------------
 def get_nse_session():
     session = requests.Session()
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0",
         "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.nseindia.com/",
-        "Connection": "keep-alive"
-    }
-
-    # Mandatory homepage hit (sets cookies)
-    session.get("https://www.nseindia.com", headers=headers, timeout=10)
-    time.sleep(1.5)  # 🔥 critical for GitHub Actions
-
-    session.headers.update(headers)
+        "Referer": "https://www.nseindia.com/"
+    })
+    session.get("https://www.nseindia.com", timeout=10)
+    time.sleep(1)
     return session
 
 
 # -------------------------------------------------
-# 2️⃣ FETCH ALL EXPIRIES (DEFENSIVE)
+# 2️⃣ NIFTY → NEXT TUESDAY
 # -------------------------------------------------
-def get_all_expiries(session, symbol, retries=3):
-    url = (
-        "https://www.nseindia.com/api/option-chain-v3"
-        f"?type=Indices&symbol={symbol}"
-    )
+def get_next_tuesday():
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    weekday = today.weekday()  # Mon=0
 
-    for _ in range(retries):
-        try:
-            resp = session.get(url, timeout=10)
-            if resp.status_code != 200:
-                time.sleep(1)
-                continue
+    days_ahead = (1 - weekday) % 7
+    if days_ahead == 0:
+        days_ahead = 7
 
-            data = resp.json()
-
-            if "records" in data and "expiryDates" in data["records"]:
-                return data["records"]["expiryDates"]
-
-        except Exception:
-            time.sleep(1)
-
-    raise Exception(f"❌ Unable to fetch expiry list for {symbol}")
+    expiry = today + timedelta(days=days_ahead)
+    return expiry.strftime("%d-%b-%Y")
 
 
 # -------------------------------------------------
-# 3️⃣ NIFTY → WEEKLY (NEAREST TUESDAY)
+# 3️⃣ LAST TUESDAY OF MONTH
 # -------------------------------------------------
-def get_weekly_expiry(session, symbol):
-    return get_all_expiries(session, symbol)[0]
+def last_tuesday_of_month(year, month):
+    if month == 12:
+        last_day = date(year, 12, 31)
+    else:
+        last_day = date(year, month + 1, 1) - timedelta(days=1)
+
+    while last_day.weekday() != 1:  # Tuesday
+        last_day -= timedelta(days=1)
+
+    return last_day
 
 
 # -------------------------------------------------
-# 4️⃣ BANKNIFTY / FINNIFTY → MONTHLY (LAST TUESDAY)
+# 4️⃣ BANKNIFTY / FINNIFTY MONTHLY LOGIC
 # -------------------------------------------------
-def get_monthly_last_tuesday(session, symbol):
-    expiries = get_all_expiries(session, symbol)
-
+def get_monthly_last_tuesday():
     today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
 
-    future_dates = [
-        datetime.strptime(e, "%d-%b-%Y").date()
-        for e in expiries
-        if datetime.strptime(e, "%d-%b-%Y").date() >= today
-    ]
+    this_month_last_tue = last_tuesday_of_month(today.year, today.month)
 
-    # Group by (year, month)
-    monthly = {}
-    for d in future_dates:
-        key = (d.year, d.month)
-        monthly.setdefault(key, []).append(d)
+    # If today is AFTER last Tuesday → go to next month
+    if today > this_month_last_tue:
+        if today.month == 12:
+            return last_tuesday_of_month(today.year + 1, 1).strftime("%d-%b-%Y")
+        else:
+            return last_tuesday_of_month(today.year, today.month + 1).strftime("%d-%b-%Y")
 
-    # Earliest available month
-    first_month = sorted(monthly.keys())[0]
-
-    # Last expiry of that month = last Tuesday
-    last_expiry = max(monthly[first_month])
-
-    return last_expiry.strftime("%d-%b-%Y")
+    return this_month_last_tue.strftime("%d-%b-%Y")
 
 
 # -------------------------------------------------
-# 5️⃣ FETCH TOTAL CE/PE OI & VOLUME
+# 5️⃣ FETCH TOTAL OI & VOLUME
 # -------------------------------------------------
 def fetch_totals(session, symbol, expiry):
     url = (
@@ -232,7 +212,6 @@ def fetch_totals(session, symbol, expiry):
         if "CE" in row:
             ce_oi += row["CE"].get("openInterest", 0)
             ce_vol += row["CE"].get("totalTradedVolume", 0)
-
         if "PE" in row:
             pe_oi += row["PE"].get("openInterest", 0)
             pe_vol += row["PE"].get("totalTradedVolume", 0)
@@ -241,7 +220,7 @@ def fetch_totals(session, symbol, expiry):
 
 
 # -------------------------------------------------
-# 6️⃣ GOOGLE SHEETS CONNECTION
+# 6️⃣ GOOGLE SHEETS
 # -------------------------------------------------
 def get_worksheet():
     scope = [
@@ -255,7 +234,6 @@ def get_worksheet():
     )
 
     gc = gspread.authorize(creds)
-
     return gc.open_by_key(
         "1qrpBjK-qBRA85y_kNiRUGQ50U1AmTEX5cPooCPvZ4gw"
     ).worksheet("NIFTY")
@@ -268,33 +246,28 @@ def main():
     session = get_nse_session()
     ws = get_worksheet()
 
-    # Clear old data
     ws.batch_clear(["A:E"])
-
-    # Headers
     ws.update("A1", [["SYMBOL", "CE_OI", "CE_VOL", "PE_OI", "PE_VOL"]])
 
-    # Correct expiry logic
-    nifty_expiry = get_weekly_expiry(session, "NIFTY")
-    banknifty_expiry = get_monthly_last_tuesday(session, "BANKNIFTY")
-    finnifty_expiry = get_monthly_last_tuesday(session, "FINNIFTY")
+    nifty_expiry = get_next_tuesday()
+    bank_expiry = get_monthly_last_tuesday()
+    finn_expiry = bank_expiry
 
-    data = [
-        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", banknifty_expiry)],
+    rows = [
+        ["BANKNIFTY", *fetch_totals(session, "BANKNIFTY", bank_expiry)],
         ["NIFTY", *fetch_totals(session, "NIFTY", nifty_expiry)],
-        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", finnifty_expiry)]
+        ["FINNIFTY", *fetch_totals(session, "FINNIFTY", finn_expiry)],
     ]
 
-    ws.update("A2", data)
+    ws.update("A2", rows)
 
-    # IST timestamp
-    now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
     ws.update(
-        f"A{len(data) + 2}",
-        [[now_ist.strftime("%d-%m-%Y %H:%M:%S IST")]]
+        f"A{len(rows) + 2}",
+        [[now.strftime("%d-%m-%Y %H:%M:%S IST")]]
     )
 
-    print("✅ NSE OI data updated successfully")
+    print("✅ Calendar-based expiry logic applied successfully")
 
 
 # -------------------------------------------------
@@ -302,4 +275,3 @@ def main():
 # -------------------------------------------------
 if __name__ == "__main__":
     main()
-
