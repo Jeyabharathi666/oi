@@ -29,8 +29,8 @@ response.raise_for_status()
 json_data = response.json()
 df = pd.DataFrame(json_data.get("data", []))
 
-# ================= LIMIT TO FIRST 55 =================
-df = df.head(55)
+# ================= LIMIT TO FIRST 35 =================
+df = df.head(35)
 
 # ================= PREPARE FOR GSHEET =================
 headers = list(df.columns)
@@ -158,6 +158,7 @@ def main():
 # ==========================
 if __name__ == "__main__":
     main()
+
 
 
 
